@@ -314,6 +314,57 @@ void queue_str_task2()
 	queue_str_task("Hello 2\n", 50);
 }
 
+void print_msg(char *msg)
+{
+  if (!msg) return;
+
+  write(mq_open("/tmp/mqueue/out",0) , msg  , strlen(msg)+1);
+}
+
+void serial_command_task(char *cmd)
+{
+
+int i;
+  char string_tmp[10];
+  if (!strncmp( cmd,  "help",4)){
+    print_msg("\r help   -- Display all command  \n");
+    print_msg("\r echo   -- repeat what you type\n");
+    print_msg("\r hello  -- Display 'Hello world!!!' \n");
+    print_msg("\r ps     -- not yet\r\n");
+  }
+  else if(!strncmp(cmd , "echo" , 4)){
+     
+    if( (!strncmp(cmd,"echo ",5) && (cmd[5]!=' '))){
+	  print_msg(">> ");
+      print_msg(&cmd[5]);
+      print_msg("\r\n");
+    }	 
+    else{
+     print_msg(">> error using echo!!\r\n");
+    }
+
+
+  }
+  else if(!strncmp(cmd ,"hello" , 4)){
+    print_msg(">> Hello World!!!\r\n"); 
+  }
+
+  else if(!strncmp(cmd ,"ps" , 2)){
+    print_msg(">> not yet\r\n"); 
+  }
+ 
+  else{
+
+	print_msg(">> error input: ");
+	print_msg(cmd);
+	print_msg("\r\n ");
+	
+  }
+    
+
+}
+
+
 void serial_readwrite_task()
 {
 	int fdout, fdin;
@@ -321,15 +372,15 @@ void serial_readwrite_task()
 	char ch;
 	int curr_char;
 	int done;
-
+    char ch_immediate[2];
 	fdout = mq_open("/tmp/mqueue/out", 0);
 	fdin = open("/dev/tty0/in", 0);
 
 	/* Prepare the response message to be queued. */
-	memcpy(str, "Got:", 4);
+	//memcpy(str, "Got:", 4);
 
 	while (1) {
-		curr_char = 4;
+		curr_char = 0;
 		done = 0;
 		do {
 			/* Receive a byte from the RS232 port (this call will
@@ -348,15 +399,22 @@ void serial_readwrite_task()
 			}
 			else {
 				str[curr_char++] = ch;
+                               ch_immediate[0] = ch;
+				print_msg(ch_immediate);
 			}
 		} while (!done);
 
 		/* Once we are done building the response string, queue the
 		 * response to be sent to the RS232 port.
-		 */
-		write(fdout, str, curr_char+1+1);
+		 **/
+		/*write(fdout, str, curr_char+1+1);*/
+              print_msg("\r\n");
+			 
+               serial_command_task(str);
 	}
 }
+
+
 
 void first()
 {
@@ -366,9 +424,12 @@ void first()
 	if (!fork()) setpriority(0, 0), serialout(USART2, USART2_IRQn);
 	if (!fork()) setpriority(0, 0), serialin(USART2, USART2_IRQn);
 	if (!fork()) rs232_xmit_msg_task();
-	if (!fork()) setpriority(0, PRIORITY_DEFAULT - 10), queue_str_task1();
-	if (!fork()) setpriority(0, PRIORITY_DEFAULT - 10), queue_str_task2();
+	//if (!fork()) setpriority(0, PRIORITY_DEFAULT - 10), queue_str_task1();
+	//if (!fork()) setpriority(0, PRIORITY_DEFAULT - 10), queue_str_task2();
+    
 	if (!fork()) setpriority(0, PRIORITY_DEFAULT - 10), serial_readwrite_task();
+
+;
 
 	setpriority(0, PRIORITY_LIMIT);
 
@@ -684,12 +745,12 @@ int main()
 
 	init_rs232();
 	__enable_irq();
-
+    
 	tasks[task_count].stack = (void*)init_task(stacks[task_count], &first);
 	tasks[task_count].pid = 0;
 	tasks[task_count].priority = PRIORITY_DEFAULT;
 	task_count++;
-
+    
 	/* Initialize all pipes */
 	for (i = 0; i < PIPE_LIMIT; i++)
 		pipes[i].start = pipes[i].end = 0;
